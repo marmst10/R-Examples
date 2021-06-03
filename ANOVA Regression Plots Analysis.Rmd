@@ -1,0 +1,328 @@
+---
+title: "STAT 8030 Homework 3"
+author: "Connor Armstrong"
+date: "12/13/2020"
+output: pdf_document
+---
+
+```{r setup, echo = FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#tinytex::install_tinytex()
+```
+
+<br>
+Attaching necessary libraries
+
+<br>
+```{r, echo = T, include = T, message=F, warning=F}
+library(tidyverse)#data manipulation
+library(ggplot2)#plots
+library(dplyr)#data manipulation
+library(equatiomatic)#pretty equations
+library(RVAideMemoire)#moods median test, not used
+library(car)#anova
+library(nortest)#normality testing
+library(ggpubr)#plots
+library(knitr)#tables
+```
+<br>
+__PART I__
+
+<br>
+_Use the ggplot2::txhousing dataframe to perform some statistical analysis. Specifically:_
+
+<br>
+_1. Subset the dataframe such that we’re only looking at homes in Austin, Texas (for obvious reasons haha) between (and inclusive of) 2010 - 2015._
+
+<br>
+```{r, echo = T, include = T}
+house <- ggplot2::txhousing
+
+house1 <- house %>%
+  filter(city == "Austin" & year > 2009 & year < 2016)
+```
+<br>
+_2. Suppose I want to compare the median home sale prices in Austin across those six years. Treating year as a categorical variable, build an appropriate statistical model. Be sure to write out what the equation is. (HINT: use equatiomatic)._
+
+<br>
+One way ANOVA
+
+<br>
+```{r, echo = T, include = T}
+res.aov <- aov(median ~ year, data = house1)
+```
+<br>
+Summary of the analysis
+
+<br>
+```{r, echo = T, include = T}
+summary(res.aov)
+```
+<br>
+Because the p-value is significant (p < 0.05), there is a statistically significant difference of median prices of homes between some of the years in the data set.
+
+<br>
+What is the mean and standard deviation of the median prices by year?
+
+<br>
+```{r, echo = T, include = T, message=F, warning=F}
+med_sum <- group_by(house1, year) %>%
+  summarise(
+    count = n(),
+    mean = mean(median, na.rm = TRUE),
+    sd = sd(median, na.rm = TRUE)
+  )
+
+
+kable(med_sum, caption = 'Summary of Median Home Prices in Austin, TX')
+```
+
+<br>
+What does the equation for the ANOVA model look like?
+
+<br>
+$\operatorname{median}_{ij} = \beta_{0} + \beta_{1}*(\operatorname{year}) + \epsilon_{ij}$
+
+<br>
+$\operatorname{median}_{ij} = {-28317042} + {14178}*(\operatorname{year}) + \epsilon_{ij}$
+
+
+<br>
+_3. Assess all relevant assumptions_
+
+<br>
+- Assessing homogeneity of variance
+
+<br>
+Levenes test needs year to be categorical:
+
+<br>
+```{r, echo = T, include = T}
+house1$yearcat <-cut(house1$year, 
+                     breaks = c(2009.5,2010.5,2011.5,2012.5,2013.5,2014.5, 2015.5),
+                     labels=c("2010","2011","2012","2013","2014","2015"))
+
+leveneTest(median ~ yearcat, data = house1)
+
+```
+<br>
+With a p value 0.29 > 0.05, we can conclude that there is no evidence to suggest variance across groups is significantly different, validating the HOV assumption
+
+<br>
+- Are the residuals normal?
+
+<br>
+```{r, echo = T, include = T}
+resid <- resid(res.aov)
+plot(house1$median, resid, xlab="Median", ylab="Residuals", main = "Scatterplot of Median 
+     vs One-Way ANOVA Residuals")
+abline(0,0)
+ad.test(resid)
+```
+
+<br>
+With a p-value of > 0.05 from the Anderson-Darling normality test, it is likely that the residuals are normally distributed. 
+
+<br>
+Which days are different? Wilcox test with p adjust method BH recommended per
+
+<br>
+http://www.sthda.com/english/wiki/kruskal-wallis-test-in-r
+
+<br>
+```{r, echo = T, include = T, message=F, warning=F}
+pairwise.wilcox.test(house1$median, house1$yearcat,
+                     p.adjust.method = "BH")
+```
+<br>
+Combinations with p < 0.05 are significantly different. All combinations of years but 2010 & 2011 have p < 0.05 and are significantly different.
+
+<br>
+_4. Using whichever method you like, generate a graphic as well as a table which contain the appropriate outputs._
+
+<br>
+Box and Stem plot by year of Median Home Sale Prices in Austin, TX between 2010 and 2015
+
+<br>
+```{r, echo = T, include = T}
+ggboxplot(house1, x = 'year', y = 'median', 
+          ylab = "Median", xlab = "Year",
+          title = "Median Home Sale Prices in Austin, TX between 2010 and 2015")
+```
+<br>
+There appears to be a steady increase in median prices by year, while the variation in median prices does not appear to be changing significantly, upon visual inspection. These conclusions agree with the results of the ANOVA (significant differences between the mean medians between years) and Levene's test of HOV (no significant differences in variance between years).
+
+<br>
+Density plot of Median Home Sale Prices in Austin, TX between 2010 and 2015
+
+<br>
+```{r, echo = T, include = T}
+plot(density(house1$median), main = "Median Home Sale Prices in Austin, TX between 2010 and 2015")
+```
+<br>
+Visual inspection of the density plot indicates a potential bimodal distribution. This is indicative of some external influence to the population which causes deviation from normal behavior.
+
+<br>
+_5. In the context of the problem, state what inference can be made._
+
+<br>
+The median home prices for the 6 years are significantly different from each other, except for 2010 and 2011. Each year after 2011 has a mean median sale price greater than the last, therefore the data suggest that since 2011 median home prices have risen significantly every year.
+
+\newpage
+
+__PART II__
+
+<br>
+_For part two, use the same dataframe you created in part one for a new analysis. Here, suppose I have an inclination that median sale price and number of sales are interrelated. However, I also suspect that the quarter of the year in which the sale occured also has an effect of median home sale price. So specifically:_
+
+<br>
+_1. Create a new variable called “quarter” where months 1-3 are “Q1”, months 4-6 are “Q2”, months 7-9 are “Q3”, and months 10-12 are “Q4”._
+
+<br>
+```{r, echo = T, include = T}
+house1$quarter <-cut(house1$month, 
+                     breaks = c(0,3.5,6.5,9.5,12.5),
+                     labels=c("Q1","Q2","Q3","Q4"))
+
+```
+
+<br>
+_2. Build a model where median is the outcome variable, sales is the first explanatory variable, and quarter is the second explanatory variable. Be sure to write out what the equation is. (HINT: use equatiomatic)._
+
+<br>
+```{r, echo = T, include = T}
+pt2 <- lm(median ~ sales + quarter, data = house1)
+summary(pt2)
+
+```
+<br>
+The model parameters from the simple linear regression summary indicate that the chosen explanatory variables appear to have some relationship with the outcome variable. This will need to be explored in more detail to determine whether that relationship exists, and whether the appropriate model assumptions are met to reach such a conclusion.
+
+<br>
+What does the equation for the simple linear regression model look like?
+
+<br>
+```{r, echo = T, include = T, results = "asis"}
+#Symbols
+extract_eq(pt2)
+#Values
+extract_eq(pt2, use_coefs = T, coef_digits = 1)
+house1 <- cbind(house1, pred = predict(pt2))
+```
+<br>
+The coefficients of this equation imply some interesting relationships between these variables. These implications must be interpreted contextually, according to the statistical significance of the coefficients, as well as how the coefficients relate to one another. The conclusions of any discussion related to this model are contingent on validation of the appropriate assumptions.
+
+<br>
+With that said, the following is a brief analysis of the coefficients of the above multiple linear regression equation.
+
+<br>
+The variable "Quarter" is a categorical variable, and is therefore dummy coded in the equation. At each of the 4 possible values of "Quarter", the regression line shifts vertically to place the regression line in the best fit location to minimize the errors (SRSS of the Residuals). 
+
+```{r, echo = T, include = T, results = "asis"}
+
+ggplot(house1, aes(x = sales, y = median, colour = quarter)) +
+  geom_point() +
+  geom_line(mapping = aes(y=pred)) + 
+  labs(x = "Sales", y = "Median", colour = "Quarter", title = "Quantity of Sales vs Median 
+       Sales with Simple Linear Model")
+
+```
+
+<br>
+Interestingly, Q1 is not shown in the equation. This is done automatically in R to reduce the complexity of the model. Given that the coefficient for Q1 would be constant, it is automatically lumped with the intercept and the coefficients of Q2, Q3, and Q4 encode the difference of each from Q1. 
+
+<br>
+A more complex model might consider the varying slope of the best fit line due to the relationship between sales and median by quarter, by combining the "Quarter" dummy variable with sales. 
+
+<br>
+```{r, echo = T, include = T}
+pt2_xterm <- lm(median ~ sales + quarter + sales*quarter, data = house1)
+summary(pt2_xterm)
+
+```
+
+<br>
+Several of the coefficients are not significant, and the R^2 value for this model is not significantly better than the simpler model. The standard error is only marginally smaller than for the simpler model. For these reasons, this model will not be discussed or analyzed further.
+
+<br>
+```{r, echo = T, include = T, results = "asis"}
+#x-term plot
+ggplot(house1, aes(sales, median, colour = (quarter))) +
+  geom_point() +
+  geom_smooth(method = "lm", se = F) + 
+  labs(x = "Sales", y = "Median", colour = "Quarter", title = "Quantity of Sales vs Median 
+       Sales with Multiple Regression Model")
+```
+
+<br>
+_3. Assess all relevant assumptions._
+
+<br>
+- Are the residuals for the chosen model (without cross-terms) normally distributed?
+
+<br>
+```{r, echo = T, include = T}
+resid2 <- resid(pt2)
+plot(house1$median, resid2, xlab="Median", ylab="Residuals", main = "Median vs Simple 
+     Linear Regression Residuals")
+abline(0,0)
+ad.test(resid2)
+```
+
+<br>
+While the scatterplot of residuals vs the outcome variable is not perfectly random, the Anderson-Darling normality test returned a p-value of > 0.05, which meets the criteria for normality for this analysis.
+
+<br>
+- Checking the homogeneity of variance assumption.
+
+<br>
+```{r, echo = T, include = T}
+plot(house1$pred, resid, xlab="Predicted Value", ylab="Residuals", main = "Predicted Value 
+     vs Simple Linear Regression Residuals")
+abline(0,0)
+```
+<br>
+Visual inspection of the residuals vs predicted value plot does not present significant evidence of non-homogeneity of variance.
+
+<br>
+- Checking independence assumption with Durbin Watson test.
+
+<br>
+```{r, echo = T, include = T}
+durbinWatsonTest(pt2)
+```
+
+<br>
+The Durbin Watson helps to determine if the errors in the model are autocorrelated. If p > 0.05, they likely are not. The test returned a p-value of 0, which implies the median price and number of sales are not independent. This is intuitively consistent with expected behavior, as higher demand (and therefore sales) often results in higher prices. This assumption violation unfortunately calls into question the predictive ability of the model and should not be ignored when drawing conclusions from the model results.
+
+<br>
+_4. Using whichever method you like, generate a graphic as well as a table which contain the appropriate outputs._
+
+<br>
+See scatterplots and residual plots above.
+
+<br>
+The following is an ANOVA and simple table comparing the diagnostics for the two regression models.
+
+<br>
+```{r, echo = T, include = T}
+anova(pt2, pt2_xterm)
+
+x <- tribble(
+  ~Name,~r2,~Error,
+  "Linear",summary(pt2)$r.squared,sqrt(deviance(pt2)/df.residual(pt2)),
+  "Multiple",summary(pt2_xterm)$r.squared,sqrt(deviance(pt2_xterm)/df.residual(pt2_xterm))
+)
+
+kable(x, caption = 'Comparison of Model Diagnostics')
+```
+
+<br>
+The ANOVA returned a p-value > 0.05, which inicates that the performance of the more complex regression model did not perform significantly different from the simple model.
+
+<br>
+_5. In the context of the problem, state what inference can be made._
+
+<br>
+There is certainly some degree of a linear relationship between sales and median home prices in this data set when accounting for differences between seasons given the r^2 value of the chosen model implied that ~60% of the variability in median home prices can be explained by the chosen explanatory variables. As mentioned above, the violation of the independence assumption calls into question the credibility of any conclusions one might come to when implementing this type of model.
+

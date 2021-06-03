@@ -1,0 +1,125 @@
+---
+title: "STAT 8030 Homework 2 Connor Armstrong"
+author: "Connor Armstrong"
+date: "10/19/2020"
+output: html_document
+---
+
+```{r setup, echo = FALSE, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Comparison of Age and Mass of Star Wars Characters by Home Planet
+
+The mass and age of Star Wars characters appearing in the prequel films (The Phantom Menace, Attack of the Clones, and Revenge of the Sith) of characters either from the planets Tatooine or Naboo will be analyzed using the following R script.
+
+<br>
+Attaching necessary libraries
+```{r, echo = T, include = T, message=F, warning=F}
+library(tidyverse)
+library(knitr)
+```
+<br>
+Attaching the dplyr::starwars dataframe to the object 'star'
+
+```{r, echo = T, include = T}
+star <- dplyr::starwars
+```
+
+<br>
+What are the column names?
+```{r, echo = T, include = T}
+names(star)
+```
+
+<br>
+Extracting the columns films, mass, and homeworld:
+```{r, echo = T, include = T}
+star1 <- star[,c("films","mass","homeworld","birth_year")]
+```
+
+<br>
+Characters, or rows, which do not include at least one of the three prequels need to be removed from the dataset. This is done using the base R function str_detect to create a new column called key when those strings are detected in films.
+```{r, echo = T, results = 'hide', message=F, warning=F}
+star6 <- paste(star1$films, sep = " ", collapse = NULL)
+
+star7 <- str_detect(star6, c("The Phantom Menace", "Attack of the Clones", "Revenge of the Sith"))
+
+star2 <-dplyr::bind_cols(star1,star7)
+```
+
+<br>
+Filtering out observations which do not have a home planet of Tatooine or Naboo  and which do not appear in the three prequels.
+```{r, echo = T, results = 'hide', message=F, warning=F}
+
+star3 <- star2 %>%
+  dplyr::filter(star2[,5] == T) %>%
+  dplyr::filter(homeworld %in% c("Tatooine","Naboo")) 
+
+```
+
+<br>
+The dplyr functionality will be used to summarize the basic parameters of the subset established above.
+```{r, echo = T, results = 'hide', message=F, warning=F}
+star4 <- star3 %>%
+  dplyr::group_by(homeworld) %>%
+  dplyr::summarize(mean_mass = mean(mass,na.rm=T), count = n())
+```
+
+
+<br>
+Creating the Table
+```{r, echo = T, include = T}
+kable(star4, caption = 'Mean Masses and Number of Characters from Tatooine and Naboo in the Star Wars Prequels')
+```
+
+<br>
+How many rows are empty?
+```{r, echo = T, include = T, message=F, warning=F}
+star5 <- star3 %>%
+  dplyr::group_by(mass)%>%
+  dplyr::summarize(count=n())%>%
+  dplyr::arrange(desc(count))
+```
+
+```{r, echo = T, include = T}
+kable(star5[1,], caption = 'Number of Occurences of Missing Mass Information')
+```
+
+<br>
+`r star5[1,2]` observations are missing values of mass, those will be removed.
+```{r, echo = T, include = T}
+star8 <- star3 %>%
+  dplyr::filter(mass != "")
+
+```
+
+<br>
+The following boxplot compares and summarizes the masses of those characters appearing in the prequels with homeplanets Tatooine and Naboo. The masses of those characters from Tatooine is substantially larger than those from Naboo. There is also a noticeable right skew in the masses of those from Tatooine, while the masses of those from Naboo appears less skewed. Given the small number of observations in each group, any statistical conclusions derived from this analysis must consider the limitations of drawing conclusions from such a small set.
+```{r, echo = T, include = T}
+boxplot(mass~homeworld,data=star8, main="Masses of Characters in Prequel Films from Tatooine and Naboo", xlab="Home Planet", ylab="Mass")
+
+```
+
+<br>
+In order to analyze the distribution of age across these two groups (from the two worlds), the dataset will be further divided by homeworld as follows.
+
+```{r, echo = T, include = T}
+star9 <- star8 %>%
+  dplyr::filter(star8$homeworld == "Tatooine")
+
+star10 <- star8 %>%
+  dplyr::filter(star8$homeworld == "Naboo")
+
+```
+
+<br>
+The ages of the aforementioned characters (in BBY, or before the Battle of Yavin) will be compared in the following overlapping density plots.
+
+```{r, echo = T, include = T}
+plot(density(star9$birth_year), ylim=c(0,0.025), col="blue", ann=F)
+  lines(density(star10$birth_year), col="red")
+  title(main="Age of Characters from Tatooine and Naboo")
+  title(xlab="Age in Years as of BBY", ylab="Density")
+  legend(-10, 0.025, c("Tatooine","Naboo"), cex = 1.0, col=c("blue","red"), lty = 1:1)
+```
